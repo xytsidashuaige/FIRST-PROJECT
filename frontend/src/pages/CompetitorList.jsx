@@ -13,9 +13,26 @@ function CompetitorList() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [checkResults, setCheckResults] = useState({});
 
   const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3002/api';
   const useLocalDemo = !process.env.REACT_APP_API_URL && window.location.hostname !== 'localhost';
+  const CHECK_RESULTS_KEY = 'lensmor_check_results';
+  const SNAPSHOT_KEY = 'lensmor_competitor_snapshots';
+
+  const stableStringify = (value) => {
+    if (Array.isArray(value)) {
+      return `[${value.map(stableStringify).join(',')}]`;
+    }
+
+    if (value && typeof value === 'object') {
+      return `{${Object.keys(value).sort().map((key) => (
+        `${JSON.stringify(key)}:${stableStringify(value[key])}`
+      )).join(',')}}`;
+    }
+
+    return JSON.stringify(value);
+  };
 
   const readLocalCompetitors = () => {
     const saved = window.localStorage.getItem('lensmor_competitors');
@@ -38,6 +55,43 @@ function CompetitorList() {
 
   const writeLocalCompetitors = (nextCompetitors) => {
     window.localStorage.setItem('lensmor_competitors', JSON.stringify(nextCompetitors));
+  };
+
+  const readJsonMap = (key) => {
+    const saved = window.localStorage.getItem(key);
+    return saved ? JSON.parse(saved) : {};
+  };
+
+  const writeJsonMap = (key, value) => {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  };
+
+  const buildProbeUrl = (url) => {
+    const normalizedUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+    const probeUrl = normalizedUrl.endsWith('.json') ? normalizedUrl : `${normalizedUrl}/data.json`;
+    const separator = probeUrl.includes('?') ? '&' : '?';
+    return `${probeUrl}${separator}ts=${Date.now()}`;
+  };
+
+  const summarizeChanges = (previousData, nextData) => {
+    if (!previousData) {
+      return [];
+    }
+
+    const keys = Array.from(new Set([
+      ...Object.keys(previousData || {}),
+      ...Object.keys(nextData || {}),
+    ]));
+
+    return keys.filter((key) => stableStringify(previousData?.[key]) !== stableStringify(nextData?.[key]));
+  };
+
+  const saveCheckResult = (competitorId, result) => {
+    setCheckResults((current) => {
+      const next = { ...current, [competitorId]: result };
+      writeJsonMap(CHECK_RESULTS_KEY, next);
+      return next;
+    });
   };
 
   const fetchCompetitors = useCallback(async () => {
@@ -69,6 +123,71 @@ function CompetitorList() {
   useEffect(() => {
     fetchCompetitors();
   }, [fetchCompetitors]);
+
+  useEffect(() => {
+    setCheckResults(readJsonMap(CHECK_RESULTS_KEY));
+  }, []);
+
+  const handleCheckCompetitor = async (competitor) => {
+    if (!competitor.url) {
+      saveCheckResult(competitor.id, {
+        status: 'failed',
+        message: '缺少 URL，无法检测',
+        checkedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    saveCheckResult(competitor.id, {
+      status: 'checking',
+      message: '正在抓取页面数据...',
+      checkedAt: new Date().toISOString(),
+    });
+
+    try {
+      const response = await fetch(buildProbeUrl(competitor.url), {
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      const snapshots = readJsonMap(SNAPSHOT_KEY);
+      const snapshotKey = String(competitor.id);
+      const previousSnapshot = snapshots[snapshotKey];
+      const nextFingerprint = stableStringify(data);
+      const hasPrevious = Boolean(previousSnapshot);
+      const changed = hasPrevious && previousSnapshot.fingerprint !== nextFingerprint;
+      const changedFields = summarizeChanges(previousSnapshot?.data, data);
+
+      snapshots[snapshotKey] = {
+        fingerprint: nextFingerprint,
+        data,
+        capturedAt: new Date().toISOString(),
+      };
+      writeJsonMap(SNAPSHOT_KEY, snapshots);
+
+      saveCheckResult(competitor.id, {
+        status: !hasPrevious ? 'first' : changed ? 'changed' : 'unchanged',
+        message: !hasPrevious
+          ? '首次抓取完成，已保存基准快照'
+          : changed
+            ? `页面已修改：${changedFields.join('、') || '内容'}`
+            : '页面未发现变化',
+        changedFields,
+        checkedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      saveCheckResult(competitor.id, {
+        status: 'failed',
+        message: `抓取失败：${err.message}`,
+        checkedAt: new Date().toISOString(),
+      });
+    }
+  };
 
   // 新增竞对
   const handleAddCompetitor = async (formData) => {
@@ -200,36 +319,74 @@ function CompetitorList() {
               <th>ID</th>
               <th>竞对名称</th>
               <th>URL</th>
+              <th>检测状态</th>
               <th>添加时间</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
-            {competitors.map((competitor) => (
-              <tr key={competitor.id}>
-                <td>{competitor.id}</td>
-                <td>{competitor.name}</td>
-                <td>{competitor.url || '-'}</td>
-                <td>{new Date(competitor.created_at).toLocaleDateString()}</td>
-                <td>
-                  <button
-                    className="btn-edit"
-                    onClick={() => {
-                      setEditingId(competitor.id);
-                      setShowForm(true);
-                    }}
-                  >
-                    编辑
-                  </button>
-                  <button
-                    className="btn-delete"
-                    onClick={() => setDeleteConfirm(competitor.id)}
-                  >
-                    删除
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {competitors.map((competitor) => {
+              const checkResult = checkResults[competitor.id];
+
+              return (
+                <tr key={competitor.id}>
+                  <td>{competitor.id}</td>
+                  <td>{competitor.name}</td>
+                  <td>
+                    {competitor.url ? (
+                      <a href={competitor.url} target="_blank" rel="noreferrer">
+                        {competitor.url}
+                      </a>
+                    ) : '-'}
+                  </td>
+                  <td>
+                    <div className="check-status">
+                      <span className={`status-badge ${checkResult?.status || 'pending'}`}>
+                        {checkResult?.status === 'checking' && '检测中'}
+                        {checkResult?.status === 'first' && '首次抓取'}
+                        {checkResult?.status === 'changed' && '已变化'}
+                        {checkResult?.status === 'unchanged' && '未变化'}
+                        {checkResult?.status === 'failed' && '抓取失败'}
+                        {!checkResult && '未检测'}
+                      </span>
+                      {checkResult?.message && (
+                        <span className="check-message">{checkResult.message}</span>
+                      )}
+                      {checkResult?.checkedAt && (
+                        <span className="check-time">
+                          {new Date(checkResult.checkedAt).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td>{new Date(competitor.created_at).toLocaleDateString()}</td>
+                  <td>
+                    <button
+                      className="btn-check"
+                      onClick={() => handleCheckCompetitor(competitor)}
+                      disabled={checkResult?.status === 'checking'}
+                    >
+                      检测页面
+                    </button>
+                    <button
+                      className="btn-edit"
+                      onClick={() => {
+                        setEditingId(competitor.id);
+                        setShowForm(true);
+                      }}
+                    >
+                      编辑
+                    </button>
+                    <button
+                      className="btn-delete"
+                      onClick={() => setDeleteConfirm(competitor.id)}
+                    >
+                      删除
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
