@@ -1,9 +1,10 @@
 ---
 title: Lensmor Monitor v1.0.0 - 完整测试计划
 version: "1.0.0"
-status: active
+status: completed
 date_created: "2026-06-17"
 last_updated: "2026-06-17"
+completion_date: "2026-06-17"
 ---
 
 # Lensmor Monitor v1.0.0 完整测试计划
