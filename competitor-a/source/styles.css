@@ -1,0 +1,117 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, "Microsoft YaHei", sans-serif;
+  color: #17202a;
+  background: #f3f6f8;
+}
+
+.page {
+  min-height: 100vh;
+}
+
+.hero {
+  padding: 72px 8vw 56px;
+  color: #fff;
+  background: linear-gradient(135deg, #12343b, #1f6f78);
+}
+
+.eyebrow {
+  margin: 0 0 16px;
+  font-size: 14px;
+  letter-spacing: 0;
+  opacity: 0.82;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(36px, 6vw, 72px);
+  letter-spacing: 0;
+}
+
+.tagline {
+  max-width: 720px;
+  margin: 18px 0 32px;
+  font-size: 20px;
+  line-height: 1.6;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  gap: 16px;
+  max-width: 760px;
+}
+
+.metrics div,
+aside {
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 8px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.metrics span {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  opacity: 0.78;
+}
+
+.metrics strong {
+  font-size: 22px;
+}
+
+.content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+  gap: 24px;
+  padding: 40px 8vw;
+}
+
+.content > div,
+.content aside {
+  border-radius: 8px;
+  padding: 28px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(18, 52, 59, 0.08);
+}
+
+.content aside {
+  border: 0;
+  color: #17202a;
+}
+
+h2 {
+  margin: 0 0 18px;
+}
+
+ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+li {
+  border: 1px solid #dce5e8;
+  border-radius: 8px;
+  padding: 16px;
+  background: #f8fbfc;
+}
+
+small {
+  color: #65737a;
+}
+
+@media (max-width: 720px) {
+  .metrics,
+  .content {
+    grid-template-columns: 1fr;
+  }
+}

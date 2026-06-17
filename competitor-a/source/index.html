@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Competitor A Simulator</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <p class="eyebrow" id="version">Loading...</p>
+        <h1 id="headline">Competitor A</h1>
+        <p class="tagline" id="tagline"></p>
+        <div class="metrics">
+          <div>
+            <span>价格</span>
+            <strong id="price"></strong>
+          </div>
+          <div>
+            <span>库存</span>
+            <strong id="stock"></strong>
+          </div>
+          <div>
+            <span>促销</span>
+            <strong id="promo"></strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="content">
+        <div>
+          <h2>核心功能</h2>
+          <ul id="features"></ul>
+        </div>
+        <aside>
+          <h2>公告</h2>
+          <p id="announcement"></p>
+          <small id="lastUpdated"></small>
+        </aside>
+      </section>
+    </main>
+
+    <script>
+      async function loadData() {
+        const response = await fetch('./data.json?ts=' + Date.now());
+        const data = await response.json();
+        document.title = data.brand + ' - Simulator';
+        document.getElementById('version').textContent = data.brand + ' / ' + data.version;
+        document.getElementById('headline').textContent = data.headline;
+        document.getElementById('tagline').textContent = data.tagline;
+        document.getElementById('price').textContent = data.price;
+        document.getElementById('stock').textContent = data.stock;
+        document.getElementById('promo').textContent = data.promo;
+        document.getElementById('announcement').textContent = data.announcement;
+        document.getElementById('lastUpdated').textContent = '最后更新：' + data.lastUpdated;
+        document.getElementById('features').innerHTML = data.features
+          .map((feature) => '<li>' + feature + '</li>')
+          .join('');
+      }
+
+      loadData();
+    </script>
+  </body>
+</html>
