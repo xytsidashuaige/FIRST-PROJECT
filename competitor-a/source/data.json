@@ -3,7 +3,11 @@
   "brand": "Competitor A",
   "headline": "智能竞品分析套件",
   "tagline": "实时洞察价格、内容与市场信号",
+<<<<<<< HEAD
   "price": "¥299 / 月",
+=======
+  "price": "¥1999 / 月",
+>>>>>>> ebf7e36d (更新竞品 A 内容用于监控测试)
   "stock": "现货",
   "promo": "新用户首月 5 折",
   "features": [
