@@ -6,8 +6,10 @@ import '../styles/CompetitorList.css';
 
 const CHECK_RESULTS_KEY = 'lensmor_check_results';
 const SNAPSHOT_KEY = 'lensmor_competitor_snapshots';
+const CHANGE_HISTORY_KEY = 'lensmor_change_history';
 const AUTO_CHECK_KEY = 'lensmor_auto_check';
 const AUTO_CHECK_INTERVAL_MS = 60000;
+const MAX_CHANGE_HISTORY = 80;
 
 const STATUS_COPY = {
   pending: '未检测',
@@ -58,6 +60,15 @@ const writeJsonMap = (key, value) => {
   window.localStorage.setItem(key, JSON.stringify(value));
 };
 
+const readJsonList = (key) => {
+  const saved = window.localStorage.getItem(key);
+  return saved ? JSON.parse(saved) : [];
+};
+
+const writeJsonList = (key, value) => {
+  window.localStorage.setItem(key, JSON.stringify(value));
+};
+
 const buildProbeUrl = (url) => {
   const normalizedUrl = url.endsWith('/') ? url.slice(0, -1) : url;
   const probeUrl = normalizedUrl.endsWith('.json') ? normalizedUrl : `${normalizedUrl}/data.json`;
@@ -94,6 +105,7 @@ function CompetitorList() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [checkResults, setCheckResults] = useState({});
+  const [changeHistory, setChangeHistory] = useState([]);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [autoCheckEnabled, setAutoCheckEnabled] = useState(
@@ -134,6 +146,14 @@ function CompetitorList() {
     });
   }, []);
 
+  const saveChangeEvent = useCallback((event) => {
+    setChangeHistory((current) => {
+      const next = [event, ...current].slice(0, MAX_CHANGE_HISTORY);
+      writeJsonList(CHANGE_HISTORY_KEY, next);
+      return next;
+    });
+  }, []);
+
   const fetchCompetitors = useCallback(async () => {
     try {
       setLoading(true);
@@ -165,6 +185,7 @@ function CompetitorList() {
 
   useEffect(() => {
     setCheckResults(readJsonMap(CHECK_RESULTS_KEY));
+    setChangeHistory(readJsonList(CHANGE_HISTORY_KEY));
   }, []);
 
   const handleCheckCompetitor = useCallback(async (competitor, options = {}) => {
@@ -206,13 +227,26 @@ function CompetitorList() {
       const changed = hasPrevious && previousSnapshot.fingerprint !== nextFingerprint;
       const changeDetails = getChangeDetails(previousSnapshot?.data, data);
       const changedFields = changeDetails.map((item) => item.field);
+      const checkedAt = new Date().toISOString();
 
       snapshots[snapshotKey] = {
         fingerprint: nextFingerprint,
         data,
-        capturedAt: new Date().toISOString(),
+        capturedAt: checkedAt,
       };
       writeJsonMap(SNAPSHOT_KEY, snapshots);
+
+      if (changed) {
+        saveChangeEvent({
+          id: `${competitor.id}-${checkedAt}`,
+          competitorId: competitor.id,
+          competitorName: competitor.name,
+          url: competitor.url,
+          checkedAt,
+          changedFields,
+          changeDetails,
+        });
+      }
 
       saveCheckResult(competitor.id, {
         status: !hasPrevious ? 'first' : changed ? 'changed' : 'unchanged',
@@ -223,7 +257,7 @@ function CompetitorList() {
             : '页面未发现变化',
         changedFields,
         changeDetails,
-        checkedAt: new Date().toISOString(),
+        checkedAt,
       });
     } catch (err) {
       saveCheckResult(competitor.id, {
@@ -233,7 +267,7 @@ function CompetitorList() {
         changeDetails: [],
       });
     }
-  }, [saveCheckResult]);
+  }, [saveCheckResult, saveChangeEvent]);
 
   useEffect(() => {
     if (!autoCheckEnabled || competitors.length === 0) {
@@ -253,35 +287,46 @@ function CompetitorList() {
 
   const stats = useMemo(() => {
     const values = competitors.map((competitor) => checkResults[competitor.id]?.status || 'pending');
+    const changedCompetitorIds = new Set(changeHistory.map((event) => event.competitorId));
     return {
       total: competitors.length,
-      changed: values.filter((status) => status === 'changed').length,
+      changed: competitors.filter((competitor) => changedCompetitorIds.has(competitor.id)).length,
       stable: values.filter((status) => status === 'unchanged' || status === 'first').length,
       failed: values.filter((status) => status === 'failed').length,
       checking: values.filter((status) => status === 'checking').length,
     };
-  }, [competitors, checkResults]);
+  }, [competitors, checkResults, changeHistory]);
+
+  const latestChangeByCompetitor = useMemo(() => {
+    return changeHistory.reduce((latest, event) => {
+      if (!latest[event.competitorId]) {
+        latest[event.competitorId] = event;
+      }
+
+      return latest;
+    }, {});
+  }, [changeHistory]);
 
   const filteredCompetitors = useMemo(() => {
     return competitors.filter((competitor) => {
       const status = checkResults[competitor.id]?.status || 'pending';
+      const hasRecordedChange = Boolean(latestChangeByCompetitor[competitor.id]);
       const queryText = `${competitor.name || ''} ${competitor.url || ''}`.toLowerCase();
       const matchesQuery = queryText.includes(query.trim().toLowerCase());
-      const matchesStatus = statusFilter === 'all' || status === statusFilter;
+      const matchesStatus = statusFilter === 'all' || status === statusFilter || (statusFilter === 'changed' && hasRecordedChange);
       return matchesQuery && matchesStatus;
     });
-  }, [competitors, checkResults, query, statusFilter]);
+  }, [competitors, checkResults, latestChangeByCompetitor, query, statusFilter]);
 
   const recentChanges = useMemo(() => {
-    return competitors
-      .map((competitor) => ({
-        competitor,
-        result: checkResults[competitor.id],
+    return changeHistory
+      .map((event) => ({
+        ...event,
+        competitorName: competitors.find((competitor) => competitor.id === event.competitorId)?.name || event.competitorName,
       }))
-      .filter((item) => item.result?.status === 'changed')
-      .sort((a, b) => new Date(b.result.checkedAt) - new Date(a.result.checkedAt))
+      .sort((a, b) => new Date(b.checkedAt) - new Date(a.checkedAt))
       .slice(0, 4);
-  }, [competitors, checkResults]);
+  }, [competitors, changeHistory]);
 
   const lastCheckedAt = useMemo(() => {
     const timestamps = Object.values(checkResults)
@@ -508,6 +553,15 @@ function CompetitorList() {
                   {filteredCompetitors.map((competitor) => {
                     const checkResult = checkResults[competitor.id];
                     const status = checkResult?.status || 'pending';
+                    const latestChange = latestChangeByCompetitor[competitor.id];
+                    const visibleChangeDetails = checkResult?.changeDetails?.length > 0
+                      ? checkResult.changeDetails
+                      : latestChange?.changeDetails || [];
+                    const visibleChangeMessage = checkResult?.changeDetails?.length > 0
+                      ? checkResult.message
+                      : latestChange
+                        ? `最近一次变化：${latestChange.changedFields.join('、') || '内容'}`
+                        : checkResult?.message || '尚未建立快照';
 
                     return (
                       <tr key={competitor.id}>
@@ -541,10 +595,10 @@ function CompetitorList() {
                         </td>
                         <td>
                           <div className="change-summary">
-                            <span className="check-message">{checkResult?.message || '尚未建立快照'}</span>
-                            {checkResult?.changeDetails?.length > 0 && (
+                            <span className="check-message">{visibleChangeMessage}</span>
+                            {visibleChangeDetails.length > 0 && (
                               <div className="change-detail-list">
-                                {checkResult.changeDetails.map((change) => (
+                                {visibleChangeDetails.map((change) => (
                                   <div className="change-detail" key={change.field}>
                                     <strong>{change.field}</strong>
                                     <span className="change-values">
@@ -612,13 +666,13 @@ function CompetitorList() {
             </div>
           ) : (
             <div className="activity-list">
-              {recentChanges.map(({ competitor, result }) => (
-                <div className="activity-item" key={`${competitor.id}-${result.checkedAt}`}>
+              {recentChanges.map((event) => (
+                <div className="activity-item" key={event.id}>
                   <div className="activity-title">
-                    <strong>{competitor.name}</strong>
-                    <span>{new Date(result.checkedAt).toLocaleTimeString()}</span>
+                    <strong>{event.competitorName}</strong>
+                    <span>{new Date(event.checkedAt).toLocaleTimeString()}</span>
                   </div>
-                  {result.changeDetails.map((change) => (
+                  {event.changeDetails.map((change) => (
                     <div className="activity-change" key={change.field}>
                       <span>{change.field}</span>
                       <small>{change.oldValue} -&gt; {change.newValue}</small>
