@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import '../styles/ReportDetail.css';
@@ -12,11 +12,7 @@ function ReportDetail() {
 
   const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3002/api';
 
-  useEffect(() => {
-    fetchReport();
-  }, [date]);
-
-  const fetchReport = async () => {
+  const fetchReport = useCallback(async () => {
     try {
       setLoading(true);
       const response = await axios.get(`${API_BASE}/reports/${date}`);
@@ -32,7 +28,11 @@ function ReportDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [API_BASE, date]);
+
+  useEffect(() => {
+    fetchReport();
+  }, [fetchReport]);
 
   const getChangeTypeBadge = (changeType) => {
     const badges = {

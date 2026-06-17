@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import CompetitorForm from '../components/CompetitorForm';
 import DeleteConfirmDialog from '../components/DeleteConfirmDialog';
@@ -16,12 +16,7 @@ function CompetitorList() {
 
   const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3002/api';
 
-  // 加载竞对列表
-  useEffect(() => {
-    fetchCompetitors();
-  }, [page]);
-
-  const fetchCompetitors = async () => {
+  const fetchCompetitors = useCallback(async () => {
     try {
       setLoading(true);
       const response = await axios.get(`${API_BASE}/competitors`, {
@@ -36,7 +31,12 @@ function CompetitorList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [API_BASE, page]);
+
+  // 加载竞对列表
+  useEffect(() => {
+    fetchCompetitors();
+  }, [fetchCompetitors]);
 
   // 新增竞对
   const handleAddCompetitor = async (formData) => {
