@@ -1,7 +1,9 @@
 ---
 title: Lensmor Monitor v1.0.0 - 测试用例清单
 version: "1.0.0"
-status: active
+status: completed
+completion_date: "2026-06-17"
+execution_result: "20/20 PASS ✅"
 ---
 
 # Lensmor Monitor v1.0.0 测试用例清单
