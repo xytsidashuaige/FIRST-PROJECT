@@ -10,6 +10,13 @@ const CHANGE_HISTORY_KEY = 'lensmor_change_history';
 const AUTO_CHECK_KEY = 'lensmor_auto_check';
 const AUTO_CHECK_INTERVAL_MS = 60000;
 const MAX_CHANGE_HISTORY = 80;
+const IGNORED_CHANGE_FIELDS = new Set([
+  'sourceType',
+  'url',
+  'finalUrl',
+  'contentLength',
+  'textLength',
+]);
 
 const STATUS_COPY = {
   pending: '未检测',
@@ -69,6 +76,10 @@ const writeJsonList = (key, value) => {
   window.localStorage.setItem(key, JSON.stringify(value));
 };
 
+const removeIgnoredChanges = (changeDetails = []) => (
+  changeDetails.filter((change) => !IGNORED_CHANGE_FIELDS.has(change.field))
+);
+
 const buildScrapeUrl = (url) => {
   const baseUrl = process.env.REACT_APP_SCRAPER_API_URL || '/api/scrape';
   const separator = baseUrl.includes('?') ? '&' : '?';
@@ -86,6 +97,7 @@ const getChangeDetails = (previousData, nextData) => {
   ]));
 
   return keys
+    .filter((key) => !IGNORED_CHANGE_FIELDS.has(key))
     .filter((key) => stableStringify(previousData?.[key]) !== stableStringify(nextData?.[key]))
     .map((key) => ({
       field: key,
@@ -184,7 +196,15 @@ function CompetitorList() {
 
   useEffect(() => {
     setCheckResults(readJsonMap(CHECK_RESULTS_KEY));
-    setChangeHistory(readJsonList(CHANGE_HISTORY_KEY));
+    const cleanHistory = readJsonList(CHANGE_HISTORY_KEY)
+      .map((event) => ({
+        ...event,
+        changeDetails: removeIgnoredChanges(event.changeDetails),
+        changedFields: (event.changedFields || []).filter((field) => !IGNORED_CHANGE_FIELDS.has(field)),
+      }))
+      .filter((event) => event.changeDetails.length > 0);
+    writeJsonList(CHANGE_HISTORY_KEY, cleanHistory);
+    setChangeHistory(cleanHistory);
   }, []);
 
   const handleCheckCompetitor = useCallback(async (competitor, options = {}) => {
