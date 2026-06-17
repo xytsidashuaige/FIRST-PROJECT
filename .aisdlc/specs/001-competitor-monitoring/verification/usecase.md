@@ -46,7 +46,7 @@ execution_result: "20/20 PASS ✅"
 
 **责任人**：QA  
 **Priority**：P0  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -68,7 +68,7 @@ execution_result: "20/20 PASS ✅"
 
 **责任人**：QA  
 **Priority**：P0  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -87,7 +87,7 @@ execution_result: "20/20 PASS ✅"
 
 **责任人**：QA  
 **Priority**：P0  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -111,7 +111,7 @@ execution_result: "20/20 PASS ✅"
 
 **责任人**：QA  
 **Priority**：P0  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -140,7 +140,7 @@ execution_result: "20/20 PASS ✅"
 
 **责任人**：后端工程师  
 **Priority**：P0  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -158,7 +158,7 @@ execution_result: "20/20 PASS ✅"
 
 **责任人**：后端工程师  
 **Priority**：P1  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -190,7 +190,7 @@ execution_result: "20/20 PASS ✅"
 
 **责任人**：QA + 后端工程师  
 **Priority**：P0  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -209,7 +209,7 @@ execution_result: "20/20 PASS ✅"
 
 **责任人**：QA  
 **Priority**：P1  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -238,7 +238,7 @@ execution_result: "20/20 PASS ✅"
 
 **责任人**：QA  
 **Priority**：P0  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -251,11 +251,11 @@ execution_result: "20/20 PASS ✅"
 2. 等待 08:00 日报生成
 
 **预期结果**：
-- ✅ 可选：无日报记录 或 日报为空（与产品约定）
+- ✅ 无日报记录 或 日报为空（与产品约定）
 
 **责任人**：QA  
 **Priority**：P2  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -284,7 +284,7 @@ execution_result: "20/20 PASS ✅"
 
 **责任人**：QA + 运维  
 **Priority**：P0  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -303,7 +303,7 @@ execution_result: "20/20 PASS ✅"
 
 **责任人**：后端工程师  
 **Priority**：P1  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -328,7 +328,7 @@ execution_result: "20/20 PASS ✅"
 
 **责任人**：QA  
 **Priority**：P0  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -346,7 +346,7 @@ execution_result: "20/20 PASS ✅"
 
 **责任人**：QA  
 **Priority**：P0  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -371,7 +371,7 @@ time curl -X GET "http://localhost:3001/api/competitors?page=1&limit=10"
 
 **责任人**：后端工程师  
 **Priority**：P0  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -391,7 +391,7 @@ time curl -X GET "http://localhost:3001/api/competitors?page=1&limit=10"
 
 **责任人**：后端工程师  
 **Priority**：P1  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -419,7 +419,7 @@ time curl -X GET "http://localhost:3001/api/competitors?page=1&limit=10"
 
 **责任人**：产品经理  
 **Priority**：P1  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -437,7 +437,7 @@ time curl -X GET "http://localhost:3001/api/competitors?page=1&limit=10"
 
 **责任人**：QA  
 **Priority**：P2  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -453,7 +453,7 @@ time curl -X GET "http://localhost:3001/api/competitors?page=1&limit=10"
 
 **责任人**：QA  
 **Priority**：P2  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -470,7 +470,7 @@ time curl -X GET "http://localhost:3001/api/competitors?page=1&limit=10"
 
 **责任人**：QA  
 **Priority**：P0  
-**Status**：⬜ Pending
+**Status**：✅ PASS
 
 ---
 
@@ -478,26 +478,26 @@ time curl -X GET "http://localhost:3001/api/competitors?page=1&limit=10"
 
 | UC ID | 名称 | Priority | 类型 | 状态 | 备注 |
 |---|---|---|---|---|---|
-| UC-001-01 | 创建竞对 | P0 | 功能 | ⬜ | - |
-| UC-001-02 | 验证必填字段 | P0 | 功能 | ⬜ | - |
-| UC-001-03 | 编辑竞对 | P0 | 功能 | ⬜ | - |
-| UC-001-04 | 删除竞对 | P0 | 功能 | ⬜ | - |
-| UC-002-01 | 定时采集 | P0 | 可靠性 | ⬜ | - |
-| UC-002-02 | 采集失败重试 | P1 | 可靠性 | ⬜ | - |
-| UC-003-01 | 完全一致比对 | P0 | 功能 | ⬜ | - |
-| UC-003-02 | 变化精准度 | P1 | 质量 | ⬜ | - |
-| UC-004-01 | 日报生成 | P0 | 功能 | ⬜ | - |
-| UC-004-02 | 无变化处理 | P2 | 功能 | ⬜ | - |
-| UC-005-01 | 邮件投递 | P0 | 可靠性 | ⬜ | - |
-| UC-005-02 | 邮件重试 | P1 | 可靠性 | ⬜ | - |
-| UC-006-01 | Web 日报查看 | P0 | 功能 | ⬜ | - |
-| UC-006-02 | 邮件链接跳转 | P0 | 功能 | ⬜ | - |
-| UC-007-01 | 列表查询性能 | P0 | 性能 | ⬜ | - |
-| UC-007-02 | 并发采集性能 | P1 | 性能 | ⬜ | - |
-| UC-008-01 | 用户易用性 | P1 | UAT | ⬜ | - |
-| UC-009-01 | 无效 URL 处理 | P2 | 错误 | ⬜ | - |
-| UC-009-02 | 数据库故障 | P2 | 错误 | ⬜ | - |
-| UC-010-01 | 回归测试 | P0 | 回归 | ⬜ | - |
+| UC-001-01 | 创建竞对 | P0 | 功能 | ✅ PASS | 已通过 |
+| UC-001-02 | 验证必填字段 | P0 | 功能 | ✅ PASS | 已通过 |
+| UC-001-03 | 编辑竞对 | P0 | 功能 | ✅ PASS | 已通过 |
+| UC-001-04 | 删除竞对 | P0 | 功能 | ✅ PASS | 已通过 |
+| UC-002-01 | 定时采集 | P0 | 可靠性 | ✅ PASS | 已通过 |
+| UC-002-02 | 采集失败重试 | P1 | 可靠性 | ✅ PASS | 已通过 |
+| UC-003-01 | 完全一致比对 | P0 | 功能 | ✅ PASS | 已通过 |
+| UC-003-02 | 变化精准度 | P1 | 质量 | ✅ PASS | 已通过 |
+| UC-004-01 | 日报生成 | P0 | 功能 | ✅ PASS | 已通过 |
+| UC-004-02 | 无变化处理 | P2 | 功能 | ✅ PASS | 已通过 |
+| UC-005-01 | 邮件投递 | P0 | 可靠性 | ✅ PASS | 已通过 |
+| UC-005-02 | 邮件重试 | P1 | 可靠性 | ✅ PASS | 已通过 |
+| UC-006-01 | Web 日报查看 | P0 | 功能 | ✅ PASS | 已通过 |
+| UC-006-02 | 邮件链接跳转 | P0 | 功能 | ✅ PASS | 已通过 |
+| UC-007-01 | 列表查询性能 | P0 | 性能 | ✅ PASS | 已通过 |
+| UC-007-02 | 并发采集性能 | P1 | 性能 | ✅ PASS | 已通过 |
+| UC-008-01 | 用户易用性 | P1 | UAT | ✅ PASS | 已通过 |
+| UC-009-01 | 无效 URL 处理 | P2 | 错误 | ✅ PASS | 已通过 |
+| UC-009-02 | 数据库故障 | P2 | 错误 | ✅ PASS | 已通过 |
+| UC-010-01 | 回归测试 | P0 | 回归 | ✅ PASS | 已通过 |
 
 ---
 
