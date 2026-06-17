@@ -15,10 +15,42 @@ function CompetitorList() {
   const [total, setTotal] = useState(0);
 
   const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3002/api';
+  const useLocalDemo = !process.env.REACT_APP_API_URL && window.location.hostname !== 'localhost';
+
+  const readLocalCompetitors = () => {
+    const saved = window.localStorage.getItem('lensmor_competitors');
+    if (saved) {
+      return JSON.parse(saved);
+    }
+
+    return [
+      {
+        id: 1,
+        name: 'Demo Competitor',
+        url: 'https://example.com',
+        remarks: 'Vercel demo data',
+        active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ];
+  };
+
+  const writeLocalCompetitors = (nextCompetitors) => {
+    window.localStorage.setItem('lensmor_competitors', JSON.stringify(nextCompetitors));
+  };
 
   const fetchCompetitors = useCallback(async () => {
     try {
       setLoading(true);
+      if (useLocalDemo) {
+        const localCompetitors = readLocalCompetitors();
+        setCompetitors(localCompetitors);
+        setTotal(localCompetitors.length);
+        setError(null);
+        return;
+      }
+
       const response = await axios.get(`${API_BASE}/competitors`, {
         params: { page, limit: 10 }
       });
@@ -31,7 +63,7 @@ function CompetitorList() {
     } finally {
       setLoading(false);
     }
-  }, [API_BASE, page]);
+  }, [API_BASE, page, useLocalDemo]);
 
   // 加载竞对列表
   useEffect(() => {
@@ -41,6 +73,29 @@ function CompetitorList() {
   // 新增竞对
   const handleAddCompetitor = async (formData) => {
     try {
+      if (useLocalDemo) {
+        const localCompetitors = readLocalCompetitors();
+        const now = new Date().toISOString();
+        const nextCompetitors = [
+          {
+            id: Date.now(),
+            name: formData.name,
+            url: formData.url,
+            remarks: formData.remarks || '',
+            active: true,
+            created_at: now,
+            updated_at: now,
+          },
+          ...localCompetitors,
+        ];
+        writeLocalCompetitors(nextCompetitors);
+        setShowForm(false);
+        setCompetitors(nextCompetitors);
+        setTotal(nextCompetitors.length);
+        setError(null);
+        return;
+      }
+
       await axios.post(`${API_BASE}/competitors`, formData);
       setShowForm(false);
       fetchCompetitors();
@@ -52,6 +107,22 @@ function CompetitorList() {
   // 编辑竞对
   const handleEditCompetitor = async (id, formData) => {
     try {
+      if (useLocalDemo) {
+        const localCompetitors = readLocalCompetitors();
+        const nextCompetitors = localCompetitors.map((competitor) => (
+          competitor.id === id
+            ? { ...competitor, ...formData, updated_at: new Date().toISOString() }
+            : competitor
+        ));
+        writeLocalCompetitors(nextCompetitors);
+        setEditingId(null);
+        setShowForm(false);
+        setCompetitors(nextCompetitors);
+        setTotal(nextCompetitors.length);
+        setError(null);
+        return;
+      }
+
       await axios.put(`${API_BASE}/competitors/${id}`, formData);
       setEditingId(null);
       setShowForm(false);
@@ -64,6 +135,16 @@ function CompetitorList() {
   // 删除竞对
   const handleDeleteCompetitor = async (id) => {
     try {
+      if (useLocalDemo) {
+        const nextCompetitors = readLocalCompetitors().filter((competitor) => competitor.id !== id);
+        writeLocalCompetitors(nextCompetitors);
+        setDeleteConfirm(null);
+        setCompetitors(nextCompetitors);
+        setTotal(nextCompetitors.length);
+        setError(null);
+        return;
+      }
+
       await axios.delete(`${API_BASE}/competitors/${id}`);
       setDeleteConfirm(null);
       fetchCompetitors();
