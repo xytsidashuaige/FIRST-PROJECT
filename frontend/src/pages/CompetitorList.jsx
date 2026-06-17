@@ -69,11 +69,10 @@ const writeJsonList = (key, value) => {
   window.localStorage.setItem(key, JSON.stringify(value));
 };
 
-const buildProbeUrl = (url) => {
-  const normalizedUrl = url.endsWith('/') ? url.slice(0, -1) : url;
-  const probeUrl = normalizedUrl.endsWith('.json') ? normalizedUrl : `${normalizedUrl}/data.json`;
-  const separator = probeUrl.includes('?') ? '&' : '?';
-  return `${probeUrl}${separator}ts=${Date.now()}`;
+const buildScrapeUrl = (url) => {
+  const baseUrl = process.env.REACT_APP_SCRAPER_API_URL || '/api/scrape';
+  const separator = baseUrl.includes('?') ? '&' : '?';
+  return `${baseUrl}${separator}url=${encodeURIComponent(url)}&ts=${Date.now()}`;
 };
 
 const getChangeDetails = (previousData, nextData) => {
@@ -209,16 +208,17 @@ function CompetitorList() {
     }
 
     try {
-      const response = await fetch(buildProbeUrl(competitor.url), {
+      const response = await fetch(buildScrapeUrl(competitor.url), {
         headers: { Accept: 'application/json' },
         cache: 'no-store',
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        throw new Error(data.error || `HTTP ${response.status}`);
       }
 
-      const data = await response.json();
       const snapshots = readJsonMap(SNAPSHOT_KEY);
       const snapshotKey = String(competitor.id);
       const previousSnapshot = snapshots[snapshotKey];
