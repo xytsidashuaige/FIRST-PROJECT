@@ -80,6 +80,12 @@ const removeIgnoredChanges = (changeDetails = []) => (
   changeDetails.filter((change) => !IGNORED_CHANGE_FIELDS.has(change.field))
 );
 
+const toComparableData = (data = {}) => (
+  Object.fromEntries(
+    Object.entries(data).filter(([key]) => !IGNORED_CHANGE_FIELDS.has(key))
+  )
+);
+
 const buildScrapeUrl = (url) => {
   const baseUrl = process.env.REACT_APP_SCRAPER_API_URL || '/api/scrape';
   const separator = baseUrl.includes('?') ? '&' : '?';
@@ -242,16 +248,19 @@ function CompetitorList() {
       const snapshots = readJsonMap(SNAPSHOT_KEY);
       const snapshotKey = String(competitor.id);
       const previousSnapshot = snapshots[snapshotKey];
-      const nextFingerprint = stableStringify(data);
+      const previousData = previousSnapshot?.comparableData || toComparableData(previousSnapshot?.data || {});
+      const nextComparableData = toComparableData(data);
+      const nextFingerprint = stableStringify(nextComparableData);
       const hasPrevious = Boolean(previousSnapshot);
       const changed = hasPrevious && previousSnapshot.fingerprint !== nextFingerprint;
-      const changeDetails = getChangeDetails(previousSnapshot?.data, data);
+      const changeDetails = getChangeDetails(previousData, nextComparableData);
       const changedFields = changeDetails.map((item) => item.field);
       const checkedAt = new Date().toISOString();
 
       snapshots[snapshotKey] = {
         fingerprint: nextFingerprint,
         data,
+        comparableData: nextComparableData,
         capturedAt: checkedAt,
       };
       writeJsonMap(SNAPSHOT_KEY, snapshots);
