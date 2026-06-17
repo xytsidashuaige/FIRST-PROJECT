@@ -4,6 +4,68 @@ import CompetitorForm from '../components/CompetitorForm';
 import DeleteConfirmDialog from '../components/DeleteConfirmDialog';
 import '../styles/CompetitorList.css';
 
+const CHECK_RESULTS_KEY = 'lensmor_check_results';
+const SNAPSHOT_KEY = 'lensmor_competitor_snapshots';
+const AUTO_CHECK_KEY = 'lensmor_auto_check';
+const AUTO_CHECK_INTERVAL_MS = 60000;
+
+const stableStringify = (value) => {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(',')}]`;
+  }
+
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => (
+      `${JSON.stringify(key)}:${stableStringify(value[key])}`
+    )).join(',')}}`;
+  }
+
+  return JSON.stringify(value);
+};
+
+const formatValue = (value) => {
+  if (value === undefined) return '未设置';
+  if (value === null) return '空';
+  if (Array.isArray(value)) return value.join('、');
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+};
+
+const readJsonMap = (key) => {
+  const saved = window.localStorage.getItem(key);
+  return saved ? JSON.parse(saved) : {};
+};
+
+const writeJsonMap = (key, value) => {
+  window.localStorage.setItem(key, JSON.stringify(value));
+};
+
+const buildProbeUrl = (url) => {
+  const normalizedUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+  const probeUrl = normalizedUrl.endsWith('.json') ? normalizedUrl : `${normalizedUrl}/data.json`;
+  const separator = probeUrl.includes('?') ? '&' : '?';
+  return `${probeUrl}${separator}ts=${Date.now()}`;
+};
+
+const getChangeDetails = (previousData, nextData) => {
+  if (!previousData) {
+    return [];
+  }
+
+  const keys = Array.from(new Set([
+    ...Object.keys(previousData || {}),
+    ...Object.keys(nextData || {}),
+  ]));
+
+  return keys
+    .filter((key) => stableStringify(previousData?.[key]) !== stableStringify(nextData?.[key]))
+    .map((key) => ({
+      field: key,
+      oldValue: formatValue(previousData?.[key]),
+      newValue: formatValue(nextData?.[key]),
+    }));
+};
+
 function CompetitorList() {
   const [competitors, setCompetitors] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -14,25 +76,12 @@ function CompetitorList() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [checkResults, setCheckResults] = useState({});
+  const [autoCheckEnabled, setAutoCheckEnabled] = useState(
+    () => window.localStorage.getItem(AUTO_CHECK_KEY) === 'true'
+  );
 
   const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3002/api';
   const useLocalDemo = !process.env.REACT_APP_API_URL && window.location.hostname !== 'localhost';
-  const CHECK_RESULTS_KEY = 'lensmor_check_results';
-  const SNAPSHOT_KEY = 'lensmor_competitor_snapshots';
-
-  const stableStringify = (value) => {
-    if (Array.isArray(value)) {
-      return `[${value.map(stableStringify).join(',')}]`;
-    }
-
-    if (value && typeof value === 'object') {
-      return `{${Object.keys(value).sort().map((key) => (
-        `${JSON.stringify(key)}:${stableStringify(value[key])}`
-      )).join(',')}}`;
-    }
-
-    return JSON.stringify(value);
-  };
 
   const readLocalCompetitors = () => {
     const saved = window.localStorage.getItem('lensmor_competitors');
@@ -57,42 +106,13 @@ function CompetitorList() {
     window.localStorage.setItem('lensmor_competitors', JSON.stringify(nextCompetitors));
   };
 
-  const readJsonMap = (key) => {
-    const saved = window.localStorage.getItem(key);
-    return saved ? JSON.parse(saved) : {};
-  };
-
-  const writeJsonMap = (key, value) => {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  };
-
-  const buildProbeUrl = (url) => {
-    const normalizedUrl = url.endsWith('/') ? url.slice(0, -1) : url;
-    const probeUrl = normalizedUrl.endsWith('.json') ? normalizedUrl : `${normalizedUrl}/data.json`;
-    const separator = probeUrl.includes('?') ? '&' : '?';
-    return `${probeUrl}${separator}ts=${Date.now()}`;
-  };
-
-  const summarizeChanges = (previousData, nextData) => {
-    if (!previousData) {
-      return [];
-    }
-
-    const keys = Array.from(new Set([
-      ...Object.keys(previousData || {}),
-      ...Object.keys(nextData || {}),
-    ]));
-
-    return keys.filter((key) => stableStringify(previousData?.[key]) !== stableStringify(nextData?.[key]));
-  };
-
-  const saveCheckResult = (competitorId, result) => {
+  const saveCheckResult = useCallback((competitorId, result) => {
     setCheckResults((current) => {
       const next = { ...current, [competitorId]: result };
       writeJsonMap(CHECK_RESULTS_KEY, next);
       return next;
     });
-  };
+  }, []);
 
   const fetchCompetitors = useCallback(async () => {
     try {
@@ -119,7 +139,6 @@ function CompetitorList() {
     }
   }, [API_BASE, page, useLocalDemo]);
 
-  // 加载竞对列表
   useEffect(() => {
     fetchCompetitors();
   }, [fetchCompetitors]);
@@ -128,21 +147,25 @@ function CompetitorList() {
     setCheckResults(readJsonMap(CHECK_RESULTS_KEY));
   }, []);
 
-  const handleCheckCompetitor = async (competitor) => {
+  const handleCheckCompetitor = useCallback(async (competitor, options = {}) => {
     if (!competitor.url) {
       saveCheckResult(competitor.id, {
         status: 'failed',
         message: '缺少 URL，无法检测',
         checkedAt: new Date().toISOString(),
+        changeDetails: [],
       });
       return;
     }
 
-    saveCheckResult(competitor.id, {
-      status: 'checking',
-      message: '正在抓取页面数据...',
-      checkedAt: new Date().toISOString(),
-    });
+    if (!options.silent) {
+      saveCheckResult(competitor.id, {
+        status: 'checking',
+        message: '正在抓取页面数据...',
+        checkedAt: new Date().toISOString(),
+        changeDetails: [],
+      });
+    }
 
     try {
       const response = await fetch(buildProbeUrl(competitor.url), {
@@ -161,7 +184,8 @@ function CompetitorList() {
       const nextFingerprint = stableStringify(data);
       const hasPrevious = Boolean(previousSnapshot);
       const changed = hasPrevious && previousSnapshot.fingerprint !== nextFingerprint;
-      const changedFields = summarizeChanges(previousSnapshot?.data, data);
+      const changeDetails = getChangeDetails(previousSnapshot?.data, data);
+      const changedFields = changeDetails.map((item) => item.field);
 
       snapshots[snapshotKey] = {
         fingerprint: nextFingerprint,
@@ -178,6 +202,7 @@ function CompetitorList() {
             ? `页面已修改：${changedFields.join('、') || '内容'}`
             : '页面未发现变化',
         changedFields,
+        changeDetails,
         checkedAt: new Date().toISOString(),
       });
     } catch (err) {
@@ -185,11 +210,33 @@ function CompetitorList() {
         status: 'failed',
         message: `抓取失败：${err.message}`,
         checkedAt: new Date().toISOString(),
+        changeDetails: [],
       });
     }
+  }, [saveCheckResult]);
+
+  useEffect(() => {
+    if (!autoCheckEnabled || competitors.length === 0) {
+      return undefined;
+    }
+
+    const checkAll = () => {
+      competitors
+        .filter((competitor) => competitor.url)
+        .forEach((competitor) => handleCheckCompetitor(competitor, { silent: true }));
+    };
+
+    checkAll();
+    const intervalId = window.setInterval(checkAll, AUTO_CHECK_INTERVAL_MS);
+    return () => window.clearInterval(intervalId);
+  }, [autoCheckEnabled, competitors, handleCheckCompetitor]);
+
+  const handleAutoCheckToggle = (event) => {
+    const enabled = event.target.checked;
+    setAutoCheckEnabled(enabled);
+    window.localStorage.setItem(AUTO_CHECK_KEY, String(enabled));
   };
 
-  // 新增竞对
   const handleAddCompetitor = async (formData) => {
     try {
       if (useLocalDemo) {
@@ -223,7 +270,6 @@ function CompetitorList() {
     }
   };
 
-  // 编辑竞对
   const handleEditCompetitor = async (id, formData) => {
     try {
       if (useLocalDemo) {
@@ -251,7 +297,6 @@ function CompetitorList() {
     }
   };
 
-  // 删除竞对
   const handleDeleteCompetitor = async (id) => {
     try {
       if (useLocalDemo) {
@@ -280,15 +325,25 @@ function CompetitorList() {
 
       <div className="list-header">
         <h2>竞对列表 (共 {total} 个在线竞对)</h2>
-        <button
-          className="btn-primary"
-          onClick={() => {
-            setEditingId(null);
-            setShowForm(true);
-          }}
-        >
-          + 新增竞对
-        </button>
+        <div className="list-actions">
+          <label className="auto-check-toggle">
+            <input
+              type="checkbox"
+              checked={autoCheckEnabled}
+              onChange={handleAutoCheckToggle}
+            />
+            <span>自动检测</span>
+          </label>
+          <button
+            className="btn-primary"
+            onClick={() => {
+              setEditingId(null);
+              setShowForm(true);
+            }}
+          >
+            + 新增竞对
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -351,6 +406,20 @@ function CompetitorList() {
                       </span>
                       {checkResult?.message && (
                         <span className="check-message">{checkResult.message}</span>
+                      )}
+                      {checkResult?.changeDetails?.length > 0 && (
+                        <div className="change-detail-list">
+                          {checkResult.changeDetails.map((change) => (
+                            <div className="change-detail" key={change.field}>
+                              <strong>{change.field}</strong>
+                              <span className="change-values">
+                                <span className="old-value">{change.oldValue}</span>
+                                <span className="arrow">-&gt;</span>
+                                <span className="new-value">{change.newValue}</span>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       )}
                       {checkResult?.checkedAt && (
                         <span className="check-time">

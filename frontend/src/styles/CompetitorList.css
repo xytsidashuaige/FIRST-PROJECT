@@ -19,6 +19,27 @@
   margin: 20px 0;
 }
 
+.list-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.auto-check-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #333;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.auto-check-toggle input {
+  width: 16px;
+  height: 16px;
+}
+
 .btn-primary {
   background: #1976d2;
   color: white;
@@ -163,6 +184,57 @@
 .check-time {
   color: #777;
   font-size: 11px;
+}
+
+.change-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.change-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px;
+  background: #fafafa;
+  border: 1px solid #eeeeee;
+  border-radius: 4px;
+  max-width: 360px;
+}
+
+.change-detail strong {
+  color: #333;
+  font-size: 12px;
+}
+
+.change-values {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.old-value,
+.new-value {
+  max-width: 145px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.old-value {
+  color: #c62828;
+}
+
+.new-value {
+  color: #2e7d32;
+}
+
+.arrow {
+  color: #777;
 }
 
 .pagination {
