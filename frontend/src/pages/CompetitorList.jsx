@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import CompetitorForm from '../components/CompetitorForm';
 import DeleteConfirmDialog from '../components/DeleteConfirmDialog';
@@ -8,6 +8,24 @@ const CHECK_RESULTS_KEY = 'lensmor_check_results';
 const SNAPSHOT_KEY = 'lensmor_competitor_snapshots';
 const AUTO_CHECK_KEY = 'lensmor_auto_check';
 const AUTO_CHECK_INTERVAL_MS = 60000;
+
+const STATUS_COPY = {
+  pending: '未检测',
+  checking: '检测中',
+  first: '首次抓取',
+  changed: '发现变化',
+  unchanged: '稳定',
+  failed: '抓取失败',
+};
+
+const STATUS_TONE = {
+  pending: 'neutral',
+  checking: 'info',
+  first: 'success',
+  changed: 'warning',
+  unchanged: 'success',
+  failed: 'danger',
+};
 
 const stableStringify = (value) => {
   if (Array.isArray(value)) {
@@ -76,6 +94,8 @@ function CompetitorList() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [checkResults, setCheckResults] = useState({});
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [autoCheckEnabled, setAutoCheckEnabled] = useState(
     () => window.localStorage.getItem(AUTO_CHECK_KEY) === 'true'
   );
@@ -126,7 +146,7 @@ function CompetitorList() {
       }
 
       const response = await axios.get(`${API_BASE}/competitors`, {
-        params: { page, limit: 10 }
+        params: { page, limit: 10 },
       });
       setCompetitors(response.data.data);
       setTotal(response.data.total);
@@ -231,10 +251,56 @@ function CompetitorList() {
     return () => window.clearInterval(intervalId);
   }, [autoCheckEnabled, competitors, handleCheckCompetitor]);
 
+  const stats = useMemo(() => {
+    const values = competitors.map((competitor) => checkResults[competitor.id]?.status || 'pending');
+    return {
+      total: competitors.length,
+      changed: values.filter((status) => status === 'changed').length,
+      stable: values.filter((status) => status === 'unchanged' || status === 'first').length,
+      failed: values.filter((status) => status === 'failed').length,
+      checking: values.filter((status) => status === 'checking').length,
+    };
+  }, [competitors, checkResults]);
+
+  const filteredCompetitors = useMemo(() => {
+    return competitors.filter((competitor) => {
+      const status = checkResults[competitor.id]?.status || 'pending';
+      const queryText = `${competitor.name || ''} ${competitor.url || ''}`.toLowerCase();
+      const matchesQuery = queryText.includes(query.trim().toLowerCase());
+      const matchesStatus = statusFilter === 'all' || status === statusFilter;
+      return matchesQuery && matchesStatus;
+    });
+  }, [competitors, checkResults, query, statusFilter]);
+
+  const recentChanges = useMemo(() => {
+    return competitors
+      .map((competitor) => ({
+        competitor,
+        result: checkResults[competitor.id],
+      }))
+      .filter((item) => item.result?.status === 'changed')
+      .sort((a, b) => new Date(b.result.checkedAt) - new Date(a.result.checkedAt))
+      .slice(0, 4);
+  }, [competitors, checkResults]);
+
+  const lastCheckedAt = useMemo(() => {
+    const timestamps = Object.values(checkResults)
+      .map((result) => result?.checkedAt)
+      .filter(Boolean)
+      .sort((a, b) => new Date(b) - new Date(a));
+    return timestamps[0];
+  }, [checkResults]);
+
   const handleAutoCheckToggle = (event) => {
     const enabled = event.target.checked;
     setAutoCheckEnabled(enabled);
     window.localStorage.setItem(AUTO_CHECK_KEY, String(enabled));
+  };
+
+  const handleCheckAll = () => {
+    competitors
+      .filter((competitor) => competitor.url)
+      .forEach((competitor) => handleCheckCompetitor(competitor));
   };
 
   const handleAddCompetitor = async (formData) => {
@@ -318,22 +384,26 @@ function CompetitorList() {
   };
 
   return (
-    <div className="competitor-list-container">
-      <h1>Lensmor Monitor - 竞对监控平台</h1>
-
-      {error && <div className="error-banner">{error}</div>}
-
-      <div className="list-header">
-        <h2>竞对列表 (共 {total} 个在线竞对)</h2>
-        <div className="list-actions">
-          <label className="auto-check-toggle">
+    <div className="monitor-shell">
+      <header className="monitor-topbar">
+        <div>
+          <p className="product-kicker">Lensmor Monitor</p>
+          <h1>竞对监控工作台</h1>
+          <p className="topbar-subtitle">跟踪竞品页面、识别字段变化、保留最近检测结果。</p>
+        </div>
+        <div className="topbar-actions">
+          <label className={`switch-control ${autoCheckEnabled ? 'active' : ''}`}>
             <input
               type="checkbox"
               checked={autoCheckEnabled}
               onChange={handleAutoCheckToggle}
             />
-            <span>自动检测</span>
+            <span className="switch-track" />
+            <span>{autoCheckEnabled ? '自动检测已开启' : '自动检测关闭'}</span>
           </label>
+          <button className="btn-secondary" onClick={handleCheckAll} disabled={competitors.length === 0}>
+            全部检测
+          </button>
           <button
             className="btn-primary"
             onClick={() => {
@@ -344,121 +414,222 @@ function CompetitorList() {
             + 新增竞对
           </button>
         </div>
-      </div>
+      </header>
 
-      {showForm && (
-        <CompetitorForm
-          onSubmit={(data) => {
-            if (editingId) {
-              handleEditCompetitor(editingId, data);
-            } else {
-              handleAddCompetitor(data);
-            }
-          }}
-          onCancel={() => {
-            setShowForm(false);
-            setEditingId(null);
-          }}
-          initialData={editingId ? competitors.find(c => c.id === editingId) : null}
-        />
-      )}
+      {error && <div className="error-banner">{error}</div>}
 
-      {loading ? (
-        <div className="loading">加载中...</div>
-      ) : competitors.length === 0 ? (
-        <div className="empty">暂无竞对</div>
-      ) : (
-        <table className="competitors-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>竞对名称</th>
-              <th>URL</th>
-              <th>检测状态</th>
-              <th>添加时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {competitors.map((competitor) => {
-              const checkResult = checkResults[competitor.id];
+      <section className="overview-grid">
+        <div className="metric-card">
+          <span>监控目标</span>
+          <strong>{stats.total}</strong>
+          <small>当前在线竞对</small>
+        </div>
+        <div className="metric-card warning">
+          <span>发现变化</span>
+          <strong>{stats.changed}</strong>
+          <small>需要关注</small>
+        </div>
+        <div className="metric-card success">
+          <span>稳定目标</span>
+          <strong>{stats.stable}</strong>
+          <small>最近检测正常</small>
+        </div>
+        <div className="metric-card danger">
+          <span>抓取异常</span>
+          <strong>{stats.failed}</strong>
+          <small>{stats.checking > 0 ? `${stats.checking} 个检测中` : '无运行中任务'}</small>
+        </div>
+      </section>
 
-              return (
-                <tr key={competitor.id}>
-                  <td>{competitor.id}</td>
-                  <td>{competitor.name}</td>
-                  <td>
-                    {competitor.url ? (
-                      <a href={competitor.url} target="_blank" rel="noreferrer">
-                        {competitor.url}
-                      </a>
-                    ) : '-'}
-                  </td>
-                  <td>
-                    <div className="check-status">
-                      <span className={`status-badge ${checkResult?.status || 'pending'}`}>
-                        {checkResult?.status === 'checking' && '检测中'}
-                        {checkResult?.status === 'first' && '首次抓取'}
-                        {checkResult?.status === 'changed' && '已变化'}
-                        {checkResult?.status === 'unchanged' && '未变化'}
-                        {checkResult?.status === 'failed' && '抓取失败'}
-                        {!checkResult && '未检测'}
-                      </span>
-                      {checkResult?.message && (
-                        <span className="check-message">{checkResult.message}</span>
-                      )}
-                      {checkResult?.changeDetails?.length > 0 && (
-                        <div className="change-detail-list">
-                          {checkResult.changeDetails.map((change) => (
-                            <div className="change-detail" key={change.field}>
-                              <strong>{change.field}</strong>
-                              <span className="change-values">
-                                <span className="old-value">{change.oldValue}</span>
-                                <span className="arrow">-&gt;</span>
-                                <span className="new-value">{change.newValue}</span>
-                              </span>
+      <section className="workspace-grid">
+        <main className="monitor-panel">
+          <div className="panel-header">
+            <div>
+              <h2>监控目标</h2>
+              <p>{lastCheckedAt ? `最近检测：${new Date(lastCheckedAt).toLocaleString()}` : '等待首次检测'}</p>
+            </div>
+            <div className="table-tools">
+              <input
+                className="search-input"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="搜索竞对名称或 URL"
+              />
+              <select
+                className="status-select"
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+              >
+                <option value="all">全部状态</option>
+                <option value="changed">发现变化</option>
+                <option value="unchanged">稳定</option>
+                <option value="first">首次抓取</option>
+                <option value="failed">抓取失败</option>
+                <option value="pending">未检测</option>
+              </select>
+            </div>
+          </div>
+
+          {showForm && (
+            <CompetitorForm
+              onSubmit={(data) => {
+                if (editingId) {
+                  handleEditCompetitor(editingId, data);
+                } else {
+                  handleAddCompetitor(data);
+                }
+              }}
+              onCancel={() => {
+                setShowForm(false);
+                setEditingId(null);
+              }}
+              initialData={editingId ? competitors.find(c => c.id === editingId) : null}
+            />
+          )}
+
+          {loading ? (
+            <div className="loading">加载中...</div>
+          ) : filteredCompetitors.length === 0 ? (
+            <div className="empty">暂无匹配的监控目标</div>
+          ) : (
+            <div className="table-wrap">
+              <table className="competitors-table">
+                <thead>
+                  <tr>
+                    <th>竞对</th>
+                    <th>URL</th>
+                    <th>状态</th>
+                    <th>最近变化</th>
+                    <th>添加时间</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredCompetitors.map((competitor) => {
+                    const checkResult = checkResults[competitor.id];
+                    const status = checkResult?.status || 'pending';
+
+                    return (
+                      <tr key={competitor.id}>
+                        <td>
+                          <div className="target-cell">
+                            <span className="target-avatar">{competitor.name?.slice(0, 1) || 'C'}</span>
+                            <div>
+                              <strong>{competitor.name}</strong>
+                              <span>ID {competitor.id}</span>
                             </div>
-                          ))}
-                        </div>
-                      )}
-                      {checkResult?.checkedAt && (
-                        <span className="check-time">
-                          {new Date(checkResult.checkedAt).toLocaleString()}
-                        </span>
-                      )}
+                          </div>
+                        </td>
+                        <td>
+                          {competitor.url ? (
+                            <a className="url-link" href={competitor.url} target="_blank" rel="noreferrer">
+                              {competitor.url}
+                            </a>
+                          ) : '-'}
+                        </td>
+                        <td>
+                          <div className="status-stack">
+                            <span className={`status-badge ${STATUS_TONE[status]}`}>
+                              {STATUS_COPY[status]}
+                            </span>
+                            {checkResult?.checkedAt && (
+                              <span className="check-time">
+                                {new Date(checkResult.checkedAt).toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <div className="change-summary">
+                            <span className="check-message">{checkResult?.message || '尚未建立快照'}</span>
+                            {checkResult?.changeDetails?.length > 0 && (
+                              <div className="change-detail-list">
+                                {checkResult.changeDetails.map((change) => (
+                                  <div className="change-detail" key={change.field}>
+                                    <strong>{change.field}</strong>
+                                    <span className="change-values">
+                                      <span className="old-value">{change.oldValue}</span>
+                                      <span className="arrow">-&gt;</span>
+                                      <span className="new-value">{change.newValue}</span>
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td>{new Date(competitor.created_at).toLocaleDateString()}</td>
+                        <td>
+                          <div className="row-actions">
+                            <button
+                              className="btn-check"
+                              onClick={() => handleCheckCompetitor(competitor)}
+                              disabled={status === 'checking'}
+                            >
+                              检测
+                            </button>
+                            <button
+                              className="btn-edit"
+                              onClick={() => {
+                                setEditingId(competitor.id);
+                                setShowForm(true);
+                              }}
+                            >
+                              编辑
+                            </button>
+                            <button className="btn-delete" onClick={() => setDeleteConfirm(competitor.id)}>
+                              删除
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="pagination">
+            <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}>上一页</button>
+            <span>第 {page} 页</span>
+            <button onClick={() => setPage(page + 1)} disabled={page * 10 >= total}>下一页</button>
+          </div>
+        </main>
+
+        <aside className="side-panel">
+          <div className="panel-header compact">
+            <div>
+              <h2>变化流</h2>
+              <p>最近发现的字段级变化</p>
+            </div>
+          </div>
+
+          {recentChanges.length === 0 ? (
+            <div className="activity-empty">
+              <strong>暂无变化</strong>
+              <span>检测到变化后会在这里显示字段明细。</span>
+            </div>
+          ) : (
+            <div className="activity-list">
+              {recentChanges.map(({ competitor, result }) => (
+                <div className="activity-item" key={`${competitor.id}-${result.checkedAt}`}>
+                  <div className="activity-title">
+                    <strong>{competitor.name}</strong>
+                    <span>{new Date(result.checkedAt).toLocaleTimeString()}</span>
+                  </div>
+                  {result.changeDetails.map((change) => (
+                    <div className="activity-change" key={change.field}>
+                      <span>{change.field}</span>
+                      <small>{change.oldValue} -&gt; {change.newValue}</small>
                     </div>
-                  </td>
-                  <td>{new Date(competitor.created_at).toLocaleDateString()}</td>
-                  <td>
-                    <button
-                      className="btn-check"
-                      onClick={() => handleCheckCompetitor(competitor)}
-                      disabled={checkResult?.status === 'checking'}
-                    >
-                      检测页面
-                    </button>
-                    <button
-                      className="btn-edit"
-                      onClick={() => {
-                        setEditingId(competitor.id);
-                        setShowForm(true);
-                      }}
-                    >
-                      编辑
-                    </button>
-                    <button
-                      className="btn-delete"
-                      onClick={() => setDeleteConfirm(competitor.id)}
-                    >
-                      删除
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </aside>
+      </section>
 
       {deleteConfirm && (
         <DeleteConfirmDialog
@@ -467,12 +638,6 @@ function CompetitorList() {
           onCancel={() => setDeleteConfirm(null)}
         />
       )}
-
-      <div className="pagination">
-        <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}>上一页</button>
-        <span>第 {page} 页</span>
-        <button onClick={() => setPage(page + 1)} disabled={page * 10 >= total}>下一页</button>
-      </div>
     </div>
   );
 }
