@@ -171,6 +171,24 @@ function CompetitorList() {
     });
   }, []);
 
+  const fetchMonitorState = useCallback(async () => {
+    if (useLocalDemo) {
+      return;
+    }
+
+    try {
+      const [resultsResponse, eventsResponse] = await Promise.all([
+        axios.get(`${API_BASE}/check-results`),
+        axios.get(`${API_BASE}/change-events`, { params: { limit: MAX_CHANGE_HISTORY } }),
+      ]);
+
+      setCheckResults(resultsResponse.data.checkResults || {});
+      setChangeHistory(eventsResponse.data.data || []);
+    } catch (err) {
+      console.error('加载监控状态失败', err);
+    }
+  }, [API_BASE, useLocalDemo]);
+
   const fetchCompetitors = useCallback(async () => {
     try {
       setLoading(true);
@@ -201,6 +219,11 @@ function CompetitorList() {
   }, [fetchCompetitors]);
 
   useEffect(() => {
+    if (!useLocalDemo) {
+      fetchMonitorState();
+      return;
+    }
+
     setCheckResults(readJsonMap(CHECK_RESULTS_KEY));
     const cleanHistory = readJsonList(CHANGE_HISTORY_KEY)
       .map((event) => ({
@@ -211,7 +234,7 @@ function CompetitorList() {
       .filter((event) => event.changeDetails.length > 0);
     writeJsonList(CHANGE_HISTORY_KEY, cleanHistory);
     setChangeHistory(cleanHistory);
-  }, []);
+  }, [fetchMonitorState, useLocalDemo]);
 
   const handleCheckCompetitor = useCallback(async (competitor, options = {}) => {
     if (!competitor.url) {
@@ -234,6 +257,30 @@ function CompetitorList() {
     }
 
     try {
+      if (!useLocalDemo) {
+        const response = await axios.post(`${API_BASE}/check`, {
+          competitorId: competitor.id,
+        });
+
+        const result = response.data;
+        saveCheckResult(competitor.id, result);
+
+        if (result.status === 'changed' && result.changeDetails?.length > 0) {
+          saveChangeEvent({
+            id: `${competitor.id}-${result.checkedAt}`,
+            competitorId: competitor.id,
+            competitorName: competitor.name,
+            url: competitor.url,
+            checkedAt: result.checkedAt,
+            changedFields: result.changedFields,
+            changeDetails: result.changeDetails,
+          });
+        }
+
+        fetchMonitorState();
+        return;
+      }
+
       const response = await fetch(buildScrapeUrl(competitor.url), {
         headers: { Accept: 'application/json' },
         cache: 'no-store',
@@ -296,7 +343,7 @@ function CompetitorList() {
         changeDetails: [],
       });
     }
-  }, [saveCheckResult, saveChangeEvent]);
+  }, [API_BASE, fetchMonitorState, saveCheckResult, saveChangeEvent, useLocalDemo]);
 
   useEffect(() => {
     if (!autoCheckEnabled || competitors.length === 0) {
