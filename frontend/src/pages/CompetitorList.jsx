@@ -129,8 +129,8 @@ function CompetitorList() {
     () => window.localStorage.getItem(AUTO_CHECK_KEY) === 'true'
   );
 
-  const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3002/api';
-  const useLocalDemo = !process.env.REACT_APP_API_URL && window.location.hostname !== 'localhost';
+  const API_BASE = process.env.REACT_APP_API_URL || '/api';
+  const useLocalDemo = process.env.REACT_APP_USE_LOCAL_DEMO === 'true';
 
   const readLocalCompetitors = () => {
     const saved = window.localStorage.getItem('lensmor_competitors');
